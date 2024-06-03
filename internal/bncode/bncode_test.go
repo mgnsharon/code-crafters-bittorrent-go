@@ -17,6 +17,8 @@ func TestBencode(t *testing.T) {
 		{"decode int stand alone", "i52e", 52},
 		{"decode int extra string val", "i52e4:text", 52},
 		{"decode a list", "l4:texti50ei51e5:helloe", []interface{}{"text", 50, 51, "hello"}},
+		{"decode a list within a list", "l4:textli50e4:testei50ei51e5:helloe", []interface{}{"text", []interface{}{50, "test"}, 50, 51, "hello"}},
+		{"decode a dictionary", "d3:foo3:bar5:helloi52ee", map[string]interface{}{"foo": "bar", "hello": 52}},
 	}
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {

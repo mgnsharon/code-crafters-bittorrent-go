@@ -56,6 +56,16 @@ func decodeNextValue(r *strings.Reader, items []interface{}) (interface{}, error
 			return decodeNextValue(r, items)
 		}
 		return v, nil
+	} else if k == 'd' {
+		v, err := decodeDict(r)
+		if err != nil {
+			return nil, err
+		}
+		if items != nil {
+			items = append(items, v)
+			return decodeNextValue(r, items)
+		}
+		return v, nil
 	} else if k == 'e' {
 		// remove the trailing e and proceed to next item
 		r.ReadRune()
@@ -119,4 +129,29 @@ func decodeList(r *strings.Reader) (interface{}, error) {
 	r.ReadRune()
 	list := make([]interface{}, 0)
 	return decodeNextValue(r, list)
+}
+
+func decodeDict(r *strings.Reader) (interface{}, error) {
+	// remove the leading d
+	r.ReadRune()
+	m := make(map[string]interface{}, 0)
+	for {
+		c, _, err := r.ReadRune()
+		if err != nil {
+			return nil, err
+		}
+		if c == 'e' {
+			return m, nil
+		}
+		r.UnreadRune()
+		k, err := decodeNextValue(r, nil)
+		if err != nil {
+			return nil, err
+		}
+		v, err := decodeNextValue(r, nil)
+		if err != nil {
+			return nil, err
+		}
+		m[k.(string)] = v
+	}
 }
