@@ -33,6 +33,29 @@ func TestBencode(t *testing.T) {
 	}
 }
 
+func TestBncode(t *testing.T) {
+	tcs := []struct {
+		name     string
+		input    interface{}
+		expected string
+	}{
+		{"string", "test", "4:test"},
+		{"int", 50, "i50e"},
+		{"list", []interface{}{"test", 50, "hello"}, "l4:testi50e5:helloe"},
+		{"dictionary", map[string]interface{}{"foo": "bar", "hello": 52}, "d3:foo3:bar5:helloi52ee"},
+	}
+
+	for _, tc := range tcs {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := bncode.Bncode(tc.input)
+			assertNoError(t, err)
+			if got != tc.expected {
+				t.Errorf("got %s, want %s", got, tc.expected)
+			}
+		})
+	}
+}
+
 func assertNoError(t *testing.T, got error) {
 	t.Helper()
 	if got != nil {

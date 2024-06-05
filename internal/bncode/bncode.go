@@ -8,6 +8,42 @@ import (
 	"unicode"
 )
 
+func Bncode(item interface{}) (string, error) {
+	switch v := item.(type) {
+	case string:
+		return fmt.Sprintf("%d:%s", len(v), v), nil
+	case int:
+		return fmt.Sprintf("i%de", v), nil
+	case []interface{}:
+		s := ""
+		for _, li := range v {
+			bv, err := Bncode(li)
+			if err != nil {
+				return "", err
+			}
+			s += bv
+		}
+		return fmt.Sprintf("l%se", s), nil
+	case map[string]interface{}:
+		s := ""
+		for k, bv := range v {
+			kv, err := Bncode(k)
+			if err != nil {
+				return "", err
+			}
+			s += kv
+			ev, err := Bncode(bv)
+			if err != nil {
+				return "", err
+			}
+			s += ev
+		}
+		return fmt.Sprintf("d%se", s), nil
+	default:
+		return "", fmt.Errorf("unsupported type %v", v)
+	}
+}
+
 // Decode decodes a bencoded string into a bencode value
 func Decode(bencodedString string) (interface{}, error) {
 	r := strings.NewReader(bencodedString)
