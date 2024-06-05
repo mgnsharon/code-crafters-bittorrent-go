@@ -3,9 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
-	"strings"
 
 	"github.com/codecrafters-io/bittorrent-starter-go/internal/bncode"
 	"github.com/codecrafters-io/bittorrent-starter-go/internal/torrent"
@@ -28,27 +26,34 @@ func main() {
 		fmt.Println(string(jsonOutput))
 	} else if command == "info" {
 		f := os.Args[2]
-		m, h, err := torrent.ReadMetaData(f)
+		m, err := torrent.ReadMetaData(f)
 		if err != nil {
 			fmt.Println(err)
 		}
 		fmt.Printf("Tracker URL: %s\n", m.Announce)
 		fmt.Printf("Length: %d\n", m.Info.Length)
-		fmt.Printf("Info Hash: %s\n", h)
+		fmt.Printf("Info Hash: %s\n", m.GetInfoHash())
 		fmt.Printf("Piece Length: %d\n", m.Info.PieceLength)
 		fmt.Println("Piece Hashes:")
-		r := strings.NewReader(m.Info.Pieces)
-		b := make([]byte, 20)
-
-		for {
-			_, err := r.Read(b)
-			if err == io.EOF {
-				break
-			}
-			if err != nil {
-				fmt.Println(err)
-			}
-			fmt.Printf("%x\n", b)
+		hashes, err := m.Info.Hashes()
+		if err != nil {
+			fmt.Println(err)
+		}
+		for _, h := range hashes {
+			fmt.Println(h)
+		}
+	} else if command == "peers" {
+		f := os.Args[2]
+		m, err := torrent.ReadMetaData(f)
+		if err != nil {
+			fmt.Println(err)
+		}
+		resp, err := torrent.DiscoverPeers(&m)
+		if err != nil {
+			fmt.Println(err)
+		}
+		for _, p := range resp.Peers {
+			fmt.Printf("%d.%d.%d.%d:%d\n", p.IP[0], p.IP[1], p.IP[2], p.IP[3], p.Port)
 		}
 	} else {
 		fmt.Println("Unknown command: " + command)
