@@ -1,12 +1,18 @@
 package main
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/codecrafters-io/bittorrent-starter-go/internal/bncode"
 	"github.com/codecrafters-io/bittorrent-starter-go/internal/torrent"
+)
+
+const (
+	PEER_ID = "00112233445566778899"
 )
 
 func main() {
@@ -25,7 +31,12 @@ func main() {
 		jsonOutput, _ := json.Marshal(decoded)
 		fmt.Println(string(jsonOutput))
 	} else if command == "info" {
-		f := os.Args[2]
+		fn := os.Args[2]
+		f, err := os.Open(fn)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer f.Close()
 		m, err := torrent.ReadMetaData(f)
 		if err != nil {
 			fmt.Println(err)
@@ -43,18 +54,63 @@ func main() {
 			fmt.Println(h)
 		}
 	} else if command == "peers" {
-		f := os.Args[2]
+		fn := os.Args[2]
+		f, err := os.Open(fn)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer f.Close()
 		m, err := torrent.ReadMetaData(f)
 		if err != nil {
 			fmt.Println(err)
 		}
-		resp, err := torrent.DiscoverPeers(&m)
+		resp, err := torrent.DiscoverPeers(m)
 		if err != nil {
 			fmt.Println(err)
 		}
 		for _, p := range resp.Peers {
 			fmt.Printf("%d.%d.%d.%d:%d\n", p.IP[0], p.IP[1], p.IP[2], p.IP[3], p.Port)
 		}
+	} else if command == "handshake" {
+		if len(os.Args) < 4 {
+			fmt.Println("invalid number of arguments for handshake")
+		}
+		fn := os.Args[2]
+		socket := os.Args[3]
+		f, err := os.Open(fn)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer f.Close()
+		m, err := torrent.ReadMetaData(f)
+		if err != nil {
+			fmt.Println(err)
+		}
+		infohash, err := m.GetInfoHashShort()
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		hs := torrent.NewPeerHandshake(infohash, PEER_ID)
+		conn, err := net.Dial("tcp", socket)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer conn.Close()
+		_, err = conn.Write(hs.Bytes())
+		if err != nil {
+			fmt.Println(err)
+		}
+		respBuf := make([]byte, len(hs.Bytes()))
+		_, err = conn.Read(respBuf)
+		if err != nil {
+			fmt.Println(err)
+		}
+		phs, err := torrent.PeerHandshakeFromBytes(respBuf)
+		if err != nil {
+			fmt.Println(err)
+		}
+		fmt.Printf("Peer ID: %s\n", hex.EncodeToString([]byte(phs.PeerID)))
 	} else {
 		fmt.Println("Unknown command: " + command)
 		os.Exit(1)

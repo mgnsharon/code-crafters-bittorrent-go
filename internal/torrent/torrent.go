@@ -1,6 +1,7 @@
 package torrent
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"encoding/binary"
 	"encoding/hex"
@@ -9,11 +10,16 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/codecrafters-io/bittorrent-starter-go/internal/bncode"
 	"github.com/jackpal/bencode-go"
+)
+
+type ProtocolString string
+
+const (
+	BitTorrentProtocolString ProtocolString = "BitTorrent protocol"
 )
 
 type MetaInfo struct {
@@ -35,6 +41,50 @@ type Peer struct {
 type TrackerResponse struct {
 	Interval int
 	Peers    []Peer
+}
+
+type PeerHandshake struct {
+	ProtocolString ProtocolString
+	reservedBytes  string
+	InfoHash       string
+	PeerID         string
+	position       int
+}
+
+func (p *PeerHandshake) Bytes() []byte {
+	l := []byte{uint8(len(p.ProtocolString))}
+	hs := []byte(string(p.ProtocolString) + p.reservedBytes + p.InfoHash + p.PeerID)
+	return bytes.Join([][]byte{l, hs}, []byte(""))
+}
+
+func PeerHandshakeFromBytes(b []byte) (*PeerHandshake, error) {
+	protocolStringLen := b[0]
+	i := 1
+	ProtocolString := ProtocolString(string(b[:protocolStringLen]))
+	i += len(BitTorrentProtocolString)
+	reservedBytes := string(b[i : i+8])
+	i += 8
+	InfoHash := string(b[i : i+20])
+	i += 20
+	PeerID := string(b[i : i+20])
+	position := 0
+	return &PeerHandshake{
+		ProtocolString,
+		reservedBytes,
+		InfoHash,
+		PeerID,
+		position,
+	}, nil
+}
+
+func NewPeerHandshake(h string, pid string) *PeerHandshake {
+	return &PeerHandshake{
+		ProtocolString: BitTorrentProtocolString,
+		reservedBytes:  "00000000",
+		InfoHash:       h,
+		PeerID:         pid,
+		position:       0,
+	}
 }
 
 func DecodeTrackerResponse(resp string) (*TrackerResponse, error) {
@@ -131,38 +181,18 @@ func DiscoverPeers(m *Meta) (*TrackerResponse, error) {
 	return r, nil
 }
 
-func Read(fn string) (map[string]interface{}, error) {
-	f, err := os.Open(fn)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	b := make([]byte, 1024)
-	_, err = f.Read(b)
-	if err != nil {
-		return nil, err
-	}
-	d, err := bncode.Decode(string(b))
-	if err != nil {
-		return nil, err
-	}
-	return d.(map[string]interface{}), nil
-}
-
-func ReadMetaData(fn string) (Meta, error) {
-	f, err := os.Open(fn)
-	if err != nil {
-		return Meta{}, err
-	}
-	defer f.Close()
+func ReadMetaData(r io.Reader) (*Meta, error) {
 	var meta Meta
-	if err := bencode.Unmarshal(f, &meta); err != nil {
-		return meta, err
+	if err := bencode.Unmarshal(r, &meta); err != nil {
+		return nil, err
 	}
 	h := sha1.New()
 	if err := bencode.Marshal(h, meta.Info); err != nil {
-		return meta, err
+		return nil, err
 	}
 	meta.InfoHash = h
-	return meta, nil
+	return &meta, nil
+}
+
+func SendHandShake(m *Meta, p *Peer) {
 }
